@@ -130,5 +130,17 @@ resource "google_compute_region_url_map" "default" {
   default_service = google_compute_region_backend_service.default.id
 }
 
+resource "google_compute_instance" "db-tier" {
+  name         = "db-tier-instance"
+  machine_type = "f1-micro"
+  subnetwork   = "var.subnetwork"
+
+  boot_disk {
+    initialize_params {
+      image = "ubuntu-os-cloud/ubuntu-1804-lts"
+    }
+  }
+}
+
 
 
