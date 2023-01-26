@@ -1,0 +1,11 @@
+
+#!/bin/bash
+
+instance_name="my-instance"
+zone="us-central1-a"
+
+meta_data=$(gcloud compute instances describe "$instance_name" --zone "$zone" --format json)
+key="my-key"
+
+value=$(echo "$meta_data" | jq -r ".metadata | .\"$key\"")
+echo "$value"
