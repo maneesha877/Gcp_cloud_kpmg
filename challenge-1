@@ -1,4 +1,4 @@
-# create instance group
+### 3 Tier architecture
 
 ## create subnet and vpc
 resource "google_compute_subnetwork" "network-with-private-secondary-ip-ranges" {
@@ -102,6 +102,7 @@ resource "google_compute_forwarding_rule" "google_compute_forwarding_rule" {
   name                  = "l7-ilb-forwarding-rule"
   provider              = google-beta
   region                = "europe-west1"
+  ip_address             = "var.ip_address"
   ip_protocol           = "TCP"
   load_balancing_scheme = "INTERNAL_MANAGED"
   port_range            = "80"
