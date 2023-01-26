@@ -1,0 +1,133 @@
+# create instance group
+
+## create subnet and vpc
+resource "google_compute_subnetwork" "network-with-private-secondary-ip-ranges" {
+  name          = "test-subnetwork"
+  ip_cidr_range = "10.2.0.0/16"
+  region        = "us-central1"
+  network       = google_compute_network.custom-test.id
+  secondary_ip_range {
+    range_name    = "tf-test-secondary-range-update1"
+    ip_cidr_range = "192.168.10.0/24"
+  }
+}
+
+resource "google_compute_network" "custom-test" {
+  name                    = "test-network"
+  auto_create_subnetworks = false
+}
+
+
+# create instance
+resource "google_compute_instance" "staging_vm" {
+  name         = "staging-vm"
+  machine_type = "e2-medium"
+  zone         = "us-central1-c"
+  boot_disk {
+    initialize_params {
+      image = "image_name"
+    }
+  }
+
+  network_interface {
+    network = "default"
+	subnetwork
+  }
+}
+
+resource "google_compute_instance_group" "staging_group" {
+  name      = "staging-instance-group"
+  zone      = "us-central1-c"
+  instances = [google_compute_instance.staging_vm.id]
+  named_port {
+    name = "http"
+    port = "8080"
+  }
+
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+resource "google_compute_autoscaler" "default" {
+  provider = google-beta
+
+  name   = "my-autoscaler"
+  zone   = "us-central1-f"
+  target = ""instance_group_name
+
+  autoscaling_policy {
+    max_replicas    = 5
+    min_replicas    = 1
+    cooldown_period = 60
+
+    metric {
+      name                       = "pubsub.googleapis.com/subscription/num_undelivered_messages"
+      filter                     = "resource.type = pubsub_subscription AND resource.label.subscription_id = our-subscription"
+      single_instance_assignment = 65535
+    }
+  }
+}
+
+
+
+(create health check)
+resource "google_compute_https_health_check" "staging_health" {
+  name         = "staging-health"
+  request_path = "/health_check"
+  type          = "http"
+  port          = 8080
+}
+
+
+# create backend service (attach instance group and hc)
+resource "google_compute_backend_service" "staging_service" {
+  name      = "staging-service"
+  port_name = "http"
+  protocol  = "HTTP"
+
+  backend {
+    group = google_compute_instance_group.staging_group.id
+	balancing_mode  = "UTILIZATION"
+    capacity_scaler = 1.0
+  }
+
+  health_checks = [
+    "healthc-check-name",
+  ]
+}
+
+
+resource "google_compute_forwarding_rule" "google_compute_forwarding_rule" {
+  name                  = "l7-ilb-forwarding-rule"
+  provider              = google-beta
+  region                = "europe-west1"
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "INTERNAL_MANAGED"
+  port_range            = "80"
+  target                = google_compute_region_target_http_proxy.default.id
+  network               = google_compute_network.ilb_network.id
+  subnetwork            = google_compute_subnetwork.ilb_subnet.id
+  network_tier          = "PREMIUM"
+}
+
+# HTTP target proxy
+resource "google_compute_region_target_http_proxy" "default" {
+  name     = "l7-ilb-target-http-proxy"
+  provider = google-beta
+  region   = "europe-west1"
+  url_map  = google_compute_region_url_map.default.id
+}
+
+
+
+# URL map
+resource "google_compute_region_url_map" "default" {
+  name            = "l7-ilb-regional-url-map"
+  provider        = google-beta
+  region          = "europe-west1"
+  default_service = google_compute_region_backend_service.default.id
+}
+
+
+
